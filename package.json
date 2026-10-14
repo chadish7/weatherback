@@ -1,0 +1,19 @@
+{
+  "name": "weatherback",
+  "version": "0.1.0",
+  "description": "Past 7 days of weather from NOAA, visualized in an Apple Weather style.",
+  "private": true,
+  "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "build-zips": "node scripts/build-zips.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#3a6fb0">
+  <meta name="description" content="WeatherBack shows the past week of weather from NOAA, with the forecast ahead.">
+  <title>WeatherBack</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="sky-day">
+  <header class="topbar">
+    <span class="wordmark">WeatherBack</span>
+    <div class="controls">
+      <button type="button" id="change-location" class="chip" hidden>Change location</button>
+      <div class="unit-toggle" role="group" aria-label="Temperature unit">
+        <button type="button" data-unit="F" aria-pressed="true">°F</button>
+        <button type="button" data-unit="C" aria-pressed="false">°C</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Location prompt: shown while locating or when geolocation is unavailable/denied -->
+    <section id="locate" class="card locate">
+      <p id="locate-status" class="locate-status">Finding your location…</p>
+      <form id="zip-form" class="zip-form" hidden>
+        <label for="zip">Enter a US zip code</label>
+        <div class="zip-row">
+          <input id="zip" name="zip" inputmode="numeric" autocomplete="postal-code"
+                 pattern="\d{5}" maxlength="5" placeholder="e.g. 80202" required>
+          <button type="submit">Show weather</button>
+        </div>
+        <button type="button" id="use-location" class="link">Use my location instead</button>
+      </form>
+      <p id="locate-error" class="error" role="alert" hidden></p>
+    </section>
+
+    <section id="weather" hidden aria-live="polite">
+      <div class="hero">
+        <h1 id="place" class="place"></h1>
+        <div id="hero-temp" class="hero-temp"></div>
+        <div id="hero-text" class="hero-text"></div>
+        <div id="hero-hilo" class="hero-hilo"></div>
+        <div id="hero-extra" class="hero-extra"></div>
+      </div>
+
+      <div class="card days-card">
+        <div class="card-title">
+          <span aria-hidden="true">📅</span> Past 7 days &amp; forecast
+        </div>
+        <ol id="days" class="days"></ol>
+        <p class="legend">
+          <span class="legend-past">Observed</span>
+          <span class="legend-forecast">Forecast</span>
+        </p>
+        <p id="partial-note" class="partial-note" hidden>* Partial day. NOAA only keeps about 7 days of observations.</p>
+      </div>
+
+      <p id="source" class="source"></p>
+    </section>
+
+    <p id="loading" class="loading" hidden>Loading weather…</p>
+  </main>
+
+  <footer class="footer">
+    Data from <a href="https://www.weather.gov/" rel="noopener">NOAA National Weather Service</a>.
+    Zip codes from the US Census Bureau.
+  </footer>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>
