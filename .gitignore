@@ -2,3 +2,5 @@ node_modules/
 .env
 *.log
 .DS_Store
+# Created by CloudPanel for Let's Encrypt in the site root
+.well-known/

@@ -73,14 +73,14 @@ npm run build-zips -- 2025
    git clone <repo-url> .
    npm ci --omit=dev
    ```
-4. Edit `ecosystem.config.cjs`: set `PORT` to the App Port and `WEATHERBACK_CONTACT` to your email.
-5. Start it with PM2 and save the process list:
+4. Start it with PM2, passing the App Port and your contact (email or site URL), then save the
+   process list so the settings survive restarts:
    ```bash
    npm install -g pm2@latest
-   pm2 start ecosystem.config.cjs
+   PORT=3000 WEATHERBACK_CONTACT=https://<your-domain> pm2 start ecosystem.config.cjs
    pm2 save
    ```
-6. To restart after a reboot, run `echo $PATH`, then `crontab -e` and add:
+5. To restart after a reboot, run `echo $PATH`, then `crontab -e` and add:
    ```
    PATH=<output of echo $PATH>
    @reboot pm2 resurrect &> /dev/null
