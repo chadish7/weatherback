@@ -6,6 +6,12 @@ const UNIT_KEY = 'weatherback-unit';
 let unit = localStorage.getItem(UNIT_KEY) === 'C' ? 'C' : 'F';
 let lastData = null;
 let lastPlaceLabel = null;
+// Older days from /api/history, oldest first, shown above lastData.days.
+let olderDays = [];
+let olderStations = new Map();
+let historyToken = 0;
+
+const LOAD_MORE_DAYS = 7;
 
 const ICONS = {
   clear: '☀️',
@@ -155,6 +161,9 @@ function renderDays(data) {
     const name = el('div', 'day-name', day.kind === 'today' ? 'Today' : label.weekday);
     name.append(el('small', null, day.partial ? `${label.date}*` : label.date));
     if (day.partial) li.title = 'Partial day: NOAA did not report observations for the whole day';
+    if (day.source === 'ncei') {
+      li.title = day.station ? `Daily summary from NCEI station ${day.station}` : 'No NOAA daily record for this day';
+    }
 
     const icon = el('div', 'day-icon', ICONS[day.category] || '');
     icon.setAttribute('aria-hidden', 'true');
@@ -190,15 +199,91 @@ function renderDays(data) {
   }
 }
 
+/** NWS days with any NCEI replacements (the oldest NWS day is partial), preceded by older NCEI days. */
+function allDays() {
+  if (!lastData) return [];
+  const replaced = new Map(olderDays.map((d) => [d.date, d]));
+  const recent = lastData.days.map((d) => (d.partial && replaced.get(d.date)?.high != null ? replaced.get(d.date) : d));
+  const recentDates = new Set(recent.map((d) => d.date));
+  return [...olderDays.filter((d) => !recentDates.has(d.date)), ...recent];
+}
+
 function render() {
   if (!lastData) return;
+  const days = allDays();
   renderHero(lastData);
-  renderDays(lastData);
+  renderDays({ ...lastData, days });
+  const pastCount = days.filter((d) => d.kind === 'past').length;
+  $('#days-title').textContent = `Past ${pastCount} days & forecast`;
   const s = lastData.station;
   const updated = new Date(lastData.generatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  $('#source').textContent = `Observations from ${s.name} (${s.id}) · Updated ${updated}`;
-  $('#partial-note').hidden = !lastData.days.some((d) => d.partial);
+  let source = `Observations from ${s.name} (${s.id}) · Updated ${updated}`;
+  if (olderStations.size) {
+    source += ` · Older days: NCEI daily summaries from ${[...olderStations.values()].map((st) => st.name).join(', ')}`;
+  }
+  $('#source').textContent = source;
+  $('#partial-note').hidden = !days.some((d) => d.partial);
 }
+
+// ---------- load more (older days) ----------
+
+function addDays(isoDate, n) {
+  return new Date(Date.parse(`${isoDate}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+}
+
+function resetHistory() {
+  olderDays = [];
+  olderStations = new Map();
+  historyToken++;
+  $('#load-more').disabled = false;
+  $('#load-more').textContent = `Load ${LOAD_MORE_DAYS} more days`;
+  $('#load-more-status').hidden = true;
+}
+
+async function loadMore() {
+  if (!lastData) return;
+  const token = ++historyToken;
+  const button = $('#load-more');
+  const status = $('#load-more-status');
+  const { lat, lon } = lastData.location;
+
+  // First time, include the oldest NWS day too, since NWS usually only has part of it.
+  let end;
+  let count = LOAD_MORE_DAYS;
+  if (olderDays.length) {
+    end = addDays(olderDays[0].date, -1);
+  } else {
+    const oldest = lastData.days[0];
+    end = oldest.partial ? oldest.date : addDays(oldest.date, -1);
+    if (oldest.partial) count += 1;
+  }
+
+  button.disabled = true;
+  button.textContent = 'Loading…';
+  status.hidden = true;
+  try {
+    const data = await getJson(`/api/history?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&end=${end}&days=${count}`);
+    if (token !== historyToken) return; // location changed while loading
+    if (!data.days.some((d) => d.high != null)) {
+      status.textContent = 'NOAA has no older daily records near this location for those dates.';
+      status.hidden = false;
+    }
+    olderDays = [...data.days, ...olderDays];
+    for (const st of data.stations) olderStations.set(st.id, st);
+    render();
+  } catch (err) {
+    if (token !== historyToken) return;
+    status.textContent = err.message;
+    status.hidden = false;
+  } finally {
+    if (token === historyToken) {
+      button.disabled = false;
+      button.textContent = `Load ${LOAD_MORE_DAYS} more days`;
+    }
+  }
+}
+
+$('#load-more').addEventListener('click', loadMore);
 
 // ---------- state / flow ----------
 
@@ -233,6 +318,7 @@ async function loadWeather(lat, lon, placeLabel = null) {
     const data = await getJson(`/api/weather?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`);
     lastData = data;
     lastPlaceLabel = placeLabel;
+    resetHistory();
     render();
     show('weather');
   } catch (err) {

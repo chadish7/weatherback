@@ -12,17 +12,21 @@ temperature range bars, followed by the NOAA forecast in a faded style. US locat
 - Rain indicator under each bar: observed amount (or hours of rain/snow when the station doesn't report
   amounts) for past days, chance of precipitation for forecast days.
 - °F by default, with a °C toggle that is remembered in the browser.
+- **Load 7 more days** button at the top of the list fetches older days from NOAA's NCEI archive,
+  7 at a time, as far back as you like.
 
 ## How it works
 
 ```
-browser (public/)  ──►  Node/Express (server.js)  ──►  api.weather.gov (NOAA NWS)
+browser (public/)  ──►  Node/Express (server.js)  ──►  api.weather.gov (NOAA NWS): last ~7 days + forecast
+                         │                         ──►  ncei.noaa.gov (NOAA NCEI): older days (Load more)
                          └─ data/zips.json (US Census ZCTA centroids)
 ```
 
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /api/weather?lat=&lon=` | Current conditions, 7 past days, today, forecast days. °C and mm. |
+| `GET /api/history?lat=&lon=&end=YYYY-MM-DD&days=7` | Older days ending on `end` (inclusive, max 14), from NCEI daily summaries. |
 | `GET /api/zip/:zip` | Zip code → `{ lat, lon }` from the bundled Census file. |
 
 The server picks the nearest NWS observation station that has data for most of the week, groups
@@ -33,6 +37,13 @@ its observations by local calendar day to get each day's high and low, and merge
 **Data limits.** NWS only keeps about 7 days of station observations, so the oldest day is often
 incomplete. Those days are marked with `*`. Many stations don't report precipitation amounts; in that
 case the rain indicator shows hours with rain or snow observed.
+
+**Older days** come from NCEI's GHCN-Daily dataset through its keyless
+[Access Data Service](https://www.ncei.noaa.gov/support/access-data-service-api-user-documentation).
+The server finds daily-reporting stations within about 50 km (widening to about 110 km), uses the nearest
+one with good coverage, and fills gaps from the next nearest. The first "Load more" also replaces the
+partial oldest NWS day with the full NCEI record. NCEI days only have high, low, rain and snow, so they show
+no sky icon unless it rained or snowed. NCEI data lags a few days, which doesn't matter for these older dates.
 
 ## Run locally
 

@@ -48,7 +48,11 @@
 
       <div class="card days-card">
         <div class="card-title">
-          <span aria-hidden="true">📅</span> Past 7 days &amp; forecast
+          <span aria-hidden="true">📅</span> <span id="days-title">Past 7 days &amp; forecast</span>
+        </div>
+        <div class="load-more">
+          <button type="button" id="load-more" class="chip">Load 7 more days</button>
+          <p id="load-more-status" class="load-more-status" role="status" hidden></p>
         </div>
         <ol id="days" class="days"></ol>
         <p class="legend">

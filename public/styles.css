@@ -146,6 +146,15 @@ main {
 
 .days { list-style: none; margin: 0; padding: 0; }
 
+.load-more {
+  text-align: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--card-line);
+}
+.load-more .chip { backdrop-filter: none; -webkit-backdrop-filter: none; }
+.load-more .chip:disabled { opacity: 0.6; cursor: default; }
+.load-more-status { margin: 8px 0 0; font-size: 0.8rem; color: var(--text-dim); }
+
 .day {
   display: grid;
   grid-template-columns: 4.4em 2em 2.6em 1fr 2.6em;
