@@ -35,6 +35,7 @@ It is hosted on a CloudPanel server as a Node.js site run by PM2 behind CloudPan
 - Live at https://weather.cheridesigns.co.za on the CloudPanel host `cloudpanel.local`.
 - Site user `cheridesigns-weather`; code in `/home/cheridesigns-weather/htdocs/weather.cheridesigns.co.za` (a git clone of `main`).
 - nginx proxies to `127.0.0.1:3000`. PM2 app name `weatherback`, with an `@reboot pm2 resurrect` crontab entry.
+- PM2 is installed per site user in `~/.npm-global` (the system npm prefix `/usr` isn't writable); `~/.profile` adds it to `PATH`.
 - Update: as the site user, `git pull && npm ci --omit=dev && pm2 restart weatherback`.
 
 ## Conventions
