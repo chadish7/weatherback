@@ -77,6 +77,10 @@ It is hosted on a CloudPanel server as a Node.js site run by PM2 behind CloudPan
   Values come back as strings, and missing types are omitted from the row.
 - GHCN-Daily lags about 3 days, and some co-op stations lag a week or more. The NCEI station is usually different
   from the NWS station (for example `USW00094728` vs `KNYC`), but values match closely for the same site.
+- GHCN-Daily has no cloud cover. Icons come from PRCP/SNOW and weather-type flags (`WT01`/`WT02` fog, `WT03` thunder,
+  `WT05` hail, `WT08` haze, `WT11` high wind, `WT16` rain, `WT18` snow). A flag's key is only present on days it occurred.
+  Days with none of these get category `dry` (🌤️). Don't claim "sunny" for them.
+- The `global-hourly` (ISD) dataset returned no rows through the Access Data Service when tested (Oct 2026), so it isn't used for sky cover.
 
 ## Checking changes
 

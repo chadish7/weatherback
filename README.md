@@ -42,8 +42,9 @@ case the rain indicator shows hours with rain or snow observed.
 [Access Data Service](https://www.ncei.noaa.gov/support/access-data-service-api-user-documentation).
 The server finds daily-reporting stations within about 50 km (widening to about 110 km), uses the nearest
 one with good coverage, and fills gaps from the next nearest. The first "Load more" also replaces the
-partial oldest NWS day with the full NCEI record. NCEI days only have high, low, rain and snow, so they show
-no sky icon unless it rained or snowed. NCEI data lags a few days, which doesn't matter for these older dates.
+partial oldest NWS day with the full NCEI record (keeping its NWS sky icon). NCEI days have no cloud cover, so
+icons come from rain/snow totals and NOAA's weather-event flags (thunder, fog, haze, high wind). A dry day with
+no events shows a neutral 🌤️ "dry" icon. NCEI data lags a few days, which doesn't matter for these older dates.
 
 ## Run locally
 

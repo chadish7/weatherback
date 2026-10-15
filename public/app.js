@@ -22,6 +22,7 @@ const ICONS = {
   thunder: '⛈️',
   fog: '🌫️',
   wind: '💨',
+  dry: '🌤️',
 };
 const NIGHT_ICONS = { clear: '🌙', partly: '☁️' };
 const PRECIP_WORD = { rain: 'Rain', snow: 'Snow', thunder: 'Storms' };
@@ -163,6 +164,7 @@ function renderDays(data) {
     if (day.partial) li.title = 'Partial day: NOAA did not report observations for the whole day';
     if (day.source === 'ncei') {
       li.title = day.station ? `Daily summary from NCEI station ${day.station}` : 'No NOAA daily record for this day';
+      if (day.category === 'dry') li.title += '. No rain recorded; NOAA daily records don\'t include cloud cover';
     }
 
     const icon = el('div', 'day-icon', ICONS[day.category] || '');
@@ -203,7 +205,12 @@ function renderDays(data) {
 function allDays() {
   if (!lastData) return [];
   const replaced = new Map(olderDays.map((d) => [d.date, d]));
-  const recent = lastData.days.map((d) => (d.partial && replaced.get(d.date)?.high != null ? replaced.get(d.date) : d));
+  // Keep NWS's sky icon when swapping in the NCEI record, since NCEI has no cloud cover.
+  const recent = lastData.days.map((d) => {
+    const r = replaced.get(d.date);
+    if (!d.partial || r?.high == null) return d;
+    return { ...r, category: r.category === 'dry' && d.category ? d.category : r.category };
+  });
   const recentDates = new Set(recent.map((d) => d.date));
   return [...olderDays.filter((d) => !recentDates.has(d.date)), ...recent];
 }
