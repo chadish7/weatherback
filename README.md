@@ -32,7 +32,7 @@ browser (public/)  ──►  Node/Express (server.js)  ──►  api.weather.g
 The server picks the nearest NWS observation station that has data for most of the week, groups
 its observations by local calendar day to get each day's high and low, and merges in the NWS
 12-hour forecast. NOAA responses are cached in memory and in a SQLite file (`cache/weatherback.sqlite`, using
-Node's built-in `node:sqlite`), so the cache survives restarts and deploys. Cache times: forecast 30 min,
+Node's built-in `node:sqlite`), so the cache survives restarts and deploys. Cache times: forecast 8 h,
 observations 10 min, grid and station lookups 24 h. Expired rows are purged hourly. Deleting the file is safe;
 it's rebuilt on demand.
 

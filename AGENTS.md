@@ -81,7 +81,8 @@ It is hosted on a CloudPanel server as a Node.js site run by PM2 behind CloudPan
 - `precipitationLastHour` is null at many stations. Fall back to `presentWeather` (counting hours with rain/snow).
   Several reports in one hour can repeat the accumulation, so take the max per clock hour.
 - Some stations (for example KNYC) omit `textDescription` and `icon`. Current conditions fall back to the
-  first forecast period.
+  forecast period covering the current time (not `periods[0]`, which can be over since the forecast is cached for 8 h).
+- The forecast cache is 8 hours at the owner's request. Don't raise it above 24 hours.
 - Forecast days pair the daytime period (high) with that date's night period (low). Incomplete forecast days are dropped.
 - Points outside the US return 404, which the API passes on to the user as a "US only" message.
 
