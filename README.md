@@ -13,7 +13,7 @@ temperature range bars, followed by the NOAA forecast in a faded style. US locat
   amounts) for past days, chance of precipitation for forecast days.
 - °F by default, with a °C toggle that is remembered in the browser.
 - **Load 7 more days** button at the top of the list fetches older days from NOAA's NCEI archive,
-  7 at a time, as far back as you like.
+  7 at a time, as far back as you like. New rows fade and slide in, and their bars grow from the low end.
 
 ## How it works
 
@@ -31,8 +31,18 @@ browser (public/)  ──►  Node/Express (server.js)  ──►  api.weather.g
 
 The server picks the nearest NWS observation station that has data for most of the week, groups
 its observations by local calendar day to get each day's high and low, and merges in the NWS
-12-hour forecast. Responses from NOAA are cached in memory (forecast for 30 min, observations for
-10 min, grid and station lookups for 24 h).
+12-hour forecast. NOAA responses are cached in memory and in a SQLite file (`cache/weatherback.sqlite`, using
+Node's built-in `node:sqlite`), so the cache survives restarts and deploys. Cache times: forecast 30 min,
+observations 10 min, grid and station lookups 24 h. Expired rows are purged hourly. Deleting the file is safe;
+it's rebuilt on demand.
+
+The cache fills gaps rather than refetching everything:
+- **Older days** are cached per station per day. A request uses the days already cached and asks NCEI only for
+  the missing date range. Days NCEI hadn't published yet are re-checked after 3 hours, complete recent days after
+  24 hours, and days over a month old are kept for 30 days.
+- **Recent observations** are stored per station with the time span they cover. A refresh (at most every 10 min)
+  fetches only observations since the last pull, with a 2-hour overlap for late reports, and fetches the whole week
+  only if older data is missing. If NWS is down, the cached observations are used.
 
 **Data limits.** NWS only keeps about 7 days of station observations, so the oldest day is often
 incomplete. Those days are marked with `*`. Many stations don't report precipitation amounts; in that
@@ -48,7 +58,7 @@ no events shows a neutral 🌤️ "dry" icon. NCEI data lags a few days, which d
 
 ## Run locally
 
-Requires Node.js 20 or newer.
+Requires Node.js 22.13 or newer (for the built-in `node:sqlite`).
 
 ```bash
 npm install
@@ -63,6 +73,7 @@ app goes straight to the zip code prompt.
 | `PORT` | `3000` | |
 | `HOST` | `127.0.0.1` | Keep on loopback behind nginx. |
 | `WEATHERBACK_CONTACT` | — | Email or URL sent in the User-Agent, as NOAA requests. |
+| `WEATHERBACK_DB` | `cache/weatherback.sqlite` | SQLite cache file. If it can't be opened, the app logs a warning and caches in memory only. |
 
 ### Refreshing zip code data
 
@@ -75,7 +86,7 @@ npm run build-zips -- 2025
 
 ## Deploy on CloudPanel
 
-1. In CloudPanel, choose **Add Site → Create a Node.js Site**. Pick Node.js 20 or newer and set
+1. In CloudPanel, choose **Add Site → Create a Node.js Site**. Pick Node.js 22 (22.13+) or newer and set
    **App Port** to `3000` (or another free port).
 2. Under the site's **SSL/TLS** tab, issue a Let's Encrypt certificate. HTTPS is required for
    browser geolocation.

@@ -4,6 +4,8 @@ module.exports = {
     {
       name: 'weatherback',
       script: 'server.js',
+      // node:sqlite (used by lib/cache.js) prints an ExperimentalWarning on Node 22/24.
+      node_args: '--disable-warning=ExperimentalWarning',
       instances: 1,
       // Values can be overridden from the shell when running `pm2 start`; `pm2 save` stores them.
       env: {

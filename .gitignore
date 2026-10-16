@@ -2,5 +2,7 @@ node_modules/
 .env
 *.log
 .DS_Store
+# SQLite cache of NOAA responses (lib/cache.js)
+cache/
 # Created by CloudPanel for Let's Encrypt in the site root
 .well-known/

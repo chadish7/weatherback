@@ -10,6 +10,9 @@ let lastPlaceLabel = null;
 let olderDays = [];
 let olderStations = new Map();
 let historyToken = 0;
+// Dates to animate on the next render (days that just arrived from "Load more").
+let enteringDates = new Set();
+const ENTER_STAGGER_MS = 35;
 
 const LOAD_MORE_DAYS = 7;
 
@@ -151,6 +154,7 @@ function renderDays(data) {
   const pct = (t) => ((t - minT) / span) * 100;
 
   let shownDivider = false;
+  let entering = 0;
   for (const day of data.days) {
     if (day.kind === 'forecast' && !shownDivider) {
       list.append(el('li', 'divider', 'Forecast'));
@@ -158,6 +162,10 @@ function renderDays(data) {
     }
 
     const li = el('li', `day ${day.kind}`);
+    if (enteringDates.has(day.date)) {
+      li.className += ' day-enter';
+      li.style.setProperty('--enter-delay', `${entering++ * ENTER_STAGGER_MS}ms`);
+    }
     const label = dayLabel(day.date);
     const name = el('div', 'day-name', day.kind === 'today' ? 'Today' : label.weekday);
     name.append(el('small', null, day.partial ? `${label.date}*` : label.date));
@@ -277,7 +285,10 @@ async function loadMore() {
     }
     olderDays = [...data.days, ...olderDays];
     for (const st of data.stations) olderStations.set(st.id, st);
+    // Animate only this batch, once. Includes the partial NWS day that gets swapped for its full record.
+    enteringDates = new Set(data.days.map((d) => d.date));
     render();
+    enteringDates = new Set();
   } catch (err) {
     if (token !== historyToken) return;
     status.textContent = err.message;
