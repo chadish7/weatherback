@@ -60,6 +60,8 @@ It is hosted on a CloudPanel server as a Node.js site run by PM2 behind CloudPan
 - Everything passed through `cached()` must be JSON-serializable, because it's stored in SQLite. Cache plain data and
   build Maps/Sets after reading (see `getDailySummaries`). Cache keys are shared across restarts, so change the key
   prefix if you change a cached value's shape.
+- Static files in `public/` are served with `Cache-Control: no-cache` (browsers revalidate and get a 304 when unchanged),
+  so deploys show up immediately. Don't add long `maxAge` without also adding cache-busting file names.
 - Partial cache hits must fetch only the missing data, never return incomplete results. `cached()` is for
   all-or-nothing values (points, stations, forecast). Data that accumulates uses `peek`/`put`/`putMany`/`once`:
   - NCEI: keys `ncei-day:<station>:<date>`, one per station-day. `null` means NOAA had no record when asked, and it

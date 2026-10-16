@@ -84,7 +84,13 @@ app.get('/api/history', async (req, res) => {
   }
 });
 
-app.use(express.static(join(root, 'public'), { maxAge: '1h' }));
+// `no-cache` makes browsers revalidate on each load (a quick 304 via ETag/Last-Modified when unchanged),
+// so deploys take effect immediately instead of after a stale cached copy expires.
+app.use(
+  express.static(join(root, 'public'), {
+    setHeaders: (res) => res.set('Cache-Control', 'no-cache'),
+  }),
+);
 
 app.listen(PORT, HOST, () => {
   console.log(`WeatherBack listening on http://${HOST}:${PORT}`);
