@@ -1,16 +1,14 @@
 import express from 'express';
-import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getWeather } from './lib/weather.js';
 import { getHistory } from './lib/history.js';
 import { NwsError } from './lib/nws.js';
+import { searchPlaces, lookupZip } from './lib/places.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
-
-const zips = JSON.parse(readFileSync(join(root, 'data', 'zips.json'), 'utf8'));
 
 const app = express();
 app.disable('x-powered-by');
@@ -30,10 +28,25 @@ app.use((req, res, next) => {
 app.get('/api/zip/:zip', (req, res) => {
   const { zip } = req.params;
   if (!/^\d{5}$/.test(zip)) return res.status(400).json({ error: 'Enter a 5-digit US zip code.' });
-  const hit = zips[zip];
+  const hit = lookupZip(zip);
   if (!hit) return res.status(404).json({ error: `Zip code ${zip} not found.` });
   res.set('Cache-Control', 'public, max-age=86400');
-  res.json({ zip, lat: hit[0], lon: hit[1] });
+  res.json(hit);
+});
+
+// Location suggestions as the user types: city names, or a zip code once 5 digits are entered.
+app.get('/api/places', (req, res) => {
+  const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+  if (q.length > 80) return res.status(400).json({ error: 'Search text is too long.' });
+  let results = [];
+  if (/^\d{5}$/.test(q)) {
+    const z = lookupZip(q);
+    if (z) results = [{ label: z.label, zip: z.zip, lat: z.lat, lon: z.lon }];
+  } else if (!/^\d+$/.test(q)) {
+    results = searchPlaces(q);
+  }
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.json({ results });
 });
 
 function parseLatLon(query) {

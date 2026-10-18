@@ -23,7 +23,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'weatherback-zips-'));
 try {
   const zipPath = join(tmp, 'zcta.zip');
   console.log(`Downloading ${url}`);
-  execFileSync('curl', ['-sSfL', '-o', zipPath, url], { stdio: 'inherit' });
+  execFileSync('curl', ['-sSfL', '--retry', '3', '-o', zipPath, url], { stdio: 'inherit' });
   const text = execFileSync('unzip', ['-p', zipPath], { maxBuffer: 64 * 1024 * 1024 }).toString('utf8');
 
   const lines = text.split(/\r?\n/).filter(Boolean);

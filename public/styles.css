@@ -87,32 +87,65 @@ main {
   padding: 14px 16px;
 }
 
-/* Location prompt */
-.locate { margin-top: 18vh; text-align: center; }
-.locate-status { margin: 4px 0; font-size: 1.05rem; }
-.zip-form label { display: block; margin-bottom: 10px; font-size: 1.05rem; }
-.zip-row { display: flex; gap: 8px; justify-content: center; }
-.zip-row input {
-  width: 9em;
+/* Location screen */
+.locate { margin-top: 12vh; text-align: center; }
+.locate-title { display: block; margin-bottom: 12px; font-size: 1.2rem; font-weight: 600; }
+.locate-status { margin: 12px 0 0; font-size: 0.95rem; color: var(--text-dim); }
+.search-row { display: flex; gap: 8px; }
+.search-row input {
+  flex: 1;
+  min-width: 0;
   font: inherit;
-  font-size: 1.1rem;
-  text-align: center;
-  letter-spacing: 0.1em;
-  padding: 8px 10px;
+  font-size: 1.05rem;
+  padding: 9px 12px;
   border-radius: 10px;
   border: 1px solid var(--card-line);
   background: rgba(0, 0, 0, 0.18);
   color: var(--text);
 }
-.zip-row input::placeholder { color: var(--text-dim); letter-spacing: 0; }
-.zip-row button {
-  padding: 8px 14px;
+.search-row input::placeholder { color: var(--text-dim); }
+.search-row input:focus { outline: 2px solid rgba(255, 255, 255, 0.6); outline-offset: 1px; }
+.search-row button,
+.location-button {
+  padding: 9px 14px;
   border-radius: 10px;
   border: 0;
   background: rgba(255, 255, 255, 0.9);
   color: #1d3d66;
   font-weight: 600;
+  white-space: nowrap;
 }
+.location-button {
+  width: 100%;
+  margin-top: 14px;
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--text);
+  border: 1px solid var(--card-line);
+}
+.location-button:disabled { opacity: 0.6; cursor: default; }
+
+.suggestions {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 4px 0;
+  text-align: left;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--card-line);
+}
+.suggestions li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+.suggestions li small { color: var(--text-dim); white-space: nowrap; }
+.suggestions li[aria-selected="true"],
+.suggestions li:hover { background: rgba(255, 255, 255, 0.16); }
+.suggestions li.empty { cursor: default; color: var(--text-dim); }
+.suggestions li.empty:hover { background: none; }
+
 .link {
   margin-top: 12px;
   background: none;
@@ -121,7 +154,7 @@ main {
   text-decoration: underline;
   font-size: 0.9rem;
 }
-.error { color: #ffd6d6; margin: 10px 0 0; }
+.error { color: #ffd6d6; margin: 12px 0 0; }
 
 .loading { text-align: center; margin-top: 30vh; color: var(--text-dim); }
 

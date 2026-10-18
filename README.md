@@ -5,7 +5,10 @@ A web site that shows past weather in a nice way.
 WeatherBack shows the **last 7 days** of observed weather for your location as Apple Weather–style
 temperature range bars, followed by the NOAA forecast in a faded style. US locations only.
 
-- Asks for your browser location, and falls back to a US zip code.
+- Opens on a location screen: search for a US city (suggestions appear as you type) or zip code, or tap
+  **Use my current location**. The browser only asks for location permission when you tap that button.
+- The chosen location is saved in a cookie, so return visits go straight to the weather. **Change location**
+  in the top bar goes back to the search.
 - Hero card with current conditions, today's high/low, feels-like, humidity, and wind.
 - One row per day: past 7 days in full colour, then today (with a dot marking the current temperature),
   then the forecast days faded.
@@ -20,14 +23,15 @@ temperature range bars, followed by the NOAA forecast in a faded style. US locat
 ```
 browser (public/)  ──►  Node/Express (server.js)  ──►  api.weather.gov (NOAA NWS): last ~7 days + forecast
                          │                         ──►  ncei.noaa.gov (NOAA NCEI): older days (Load more)
-                         └─ data/zips.json (US Census ZCTA centroids)
+                         └─ data/zips.json, places.json, zip-names.json (US Census zip and city data)
 ```
 
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /api/weather?lat=&lon=` | Current conditions, 7 past days, today, forecast days. °C and mm. |
 | `GET /api/history?lat=&lon=&end=YYYY-MM-DD&days=7` | Older days ending on `end` (inclusive, max 14), from NCEI daily summaries. |
-| `GET /api/zip/:zip` | Zip code → `{ lat, lon }` from the bundled Census file. |
+| `GET /api/zip/:zip` | Zip code → `{ lat, lon, label }` from the bundled Census files. |
+| `GET /api/places?q=` | Up to 8 location suggestions for typed text: city names ("denv", "portland or", "st louis"), or a zip code once 5 digits are typed. |
 
 The server picks the nearest NWS observation station that has data for most of the week, groups
 its observations by local calendar day to get each day's high and low, and merges in the NWS
@@ -66,7 +70,7 @@ WEATHERBACK_CONTACT=you@example.com npm start   # http://127.0.0.1:3000
 ```
 
 Browser geolocation only works on `https://` or `http://localhost`. On other plain-HTTP hosts the
-app goes straight to the zip code prompt.
+"Use my current location" button is hidden and only search is offered.
 
 | Variable | Default | Notes |
 | --- | --- | --- |
@@ -75,14 +79,17 @@ app goes straight to the zip code prompt.
 | `WEATHERBACK_CONTACT` | — | Email or URL sent in the User-Agent, as NOAA requests. |
 | `WEATHERBACK_DB` | `cache/weatherback.sqlite` | SQLite cache file. If it can't be opened, the app logs a warning and caches in memory only. |
 
-### Refreshing zip code data
+### Refreshing zip code and city data
 
-`data/zips.json` is committed. To rebuild it from a newer Census Gazetteer release
-(needs `curl` and `unzip`):
+The files in `data/` are committed. To rebuild them from newer Census releases (needs `curl` and `unzip`):
 
 ```bash
-npm run build-zips -- 2025
+npm run build-zips -- 2025     # data/zips.json: zip code centroids (Gazetteer ZCTA file)
+npm run build-places -- 2025   # data/places.json: cities with population; data/zip-names.json: town name per zip
 ```
+
+City suggestions are ranked by population (Census city and town estimates). Unincorporated communities
+(CDPs) are included but have no population figure, so they rank below incorporated towns of the same name.
 
 ## Deploy on CloudPanel
 
@@ -117,4 +124,5 @@ See the [CloudPanel PM2 guide](https://www.cloudpanel.io/docs/v2/nodejs/deployme
 ## Credits
 
 Weather data: [NOAA National Weather Service API](https://www.weather.gov/documentation/services-web-api).
-Zip code centroids: [US Census Bureau Gazetteer Files](https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html).
+Zip codes, cities and populations: [US Census Bureau Gazetteer Files](https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html),
+[population estimates](https://www.census.gov/programs-surveys/popest.html), and the 2020 ZCTA-to-place relationship file.

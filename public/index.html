@@ -22,19 +22,24 @@
   </header>
 
   <main>
-    <!-- Location prompt: shown while locating or when geolocation is unavailable/denied -->
-    <section id="locate" class="card locate">
-      <p id="locate-status" class="locate-status">Finding your location…</p>
-      <form id="zip-form" class="zip-form" hidden>
-        <label for="zip">Enter a US zip code</label>
-        <div class="zip-row">
-          <input id="zip" name="zip" inputmode="numeric" autocomplete="postal-code"
-                 pattern="\d{5}" maxlength="5" placeholder="e.g. 80202" required>
+    <!-- Location screen: shown on first visit (no saved location) and from "Change location" -->
+    <section id="locate" class="card locate" hidden>
+      <form id="place-form" class="place-form" autocomplete="off">
+        <label for="place-input" class="locate-title">Choose a location</label>
+        <div class="search-row">
+          <input id="place-input" name="q" type="search" placeholder="City or zip code"
+                 role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions"
+                 autocapitalize="words" spellcheck="false" maxlength="80" enterkeyhint="search">
           <button type="submit">Show weather</button>
         </div>
-        <button type="button" id="use-location" class="link">Use my location instead</button>
+        <ul id="suggestions" class="suggestions" role="listbox" aria-label="Suggested locations" hidden></ul>
       </form>
+      <button type="button" id="use-location" class="location-button" hidden>
+        <span aria-hidden="true">📍</span> Use my current location
+      </button>
+      <p id="locate-status" class="locate-status" role="status" hidden></p>
       <p id="locate-error" class="error" role="alert" hidden></p>
+      <button type="button" id="cancel-locate" class="link" hidden>Back to current location</button>
     </section>
 
     <section id="weather" hidden aria-live="polite">

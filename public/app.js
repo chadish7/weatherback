@@ -113,7 +113,7 @@ function renderHero(data) {
   const { current, location, days } = data;
   const today = days.find((d) => d.kind === 'today');
   const place = [location.city, location.state].filter(Boolean).join(', ');
-  $('#place').textContent = lastPlaceLabel ? `${place} · ${lastPlaceLabel}` : place || 'Your location';
+  $('#place').textContent = lastPlaceLabel || place || 'Your location';
 
   if (current) {
     $('#hero-temp').textContent = fmtTemp(current.temp);
@@ -303,7 +303,34 @@ async function loadMore() {
 
 $('#load-more').addEventListener('click', loadMore);
 
-// ---------- state / flow ----------
+
+// ---------- saved location (cookie) ----------
+
+const LOCATION_COOKIE = 'weatherback_location';
+const COOKIE_MAX_AGE = 400 * 86_400; // browsers cap cookie lifetime at 400 days
+
+function saveLocation({ label, lat, lon }) {
+  const value = encodeURIComponent(JSON.stringify({ label, lat: Number(lat.toFixed(4)), lon: Number(lon.toFixed(4)) }));
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${LOCATION_COOKIE}=${value}; Max-Age=${COOKIE_MAX_AGE}; Path=/; SameSite=Lax${secure}`;
+}
+
+function readSavedLocation() {
+  const raw = document.cookie.split('; ').find((c) => c.startsWith(`${LOCATION_COOKIE}=`));
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(decodeURIComponent(raw.slice(LOCATION_COOKIE.length + 1)));
+    const valid = Number.isFinite(v.lat) && Number.isFinite(v.lon) && Math.abs(v.lat) <= 90 && Math.abs(v.lon) <= 180;
+    if (valid) return { lat: v.lat, lon: v.lon, label: typeof v.label === 'string' ? v.label.slice(0, 80) : null };
+  } catch {
+    /* ignore a malformed cookie */
+  }
+  return null;
+}
+
+// ---------- screens ----------
+
+const canGeolocate = () => 'geolocation' in navigator && window.isSecureContext;
 
 function show(section) {
   $('#locate').hidden = section !== 'locate';
@@ -312,15 +339,21 @@ function show(section) {
   $('#change-location').hidden = section !== 'weather';
 }
 
-function askForZip(message, isError = false) {
+function setMessage(sel, text) {
+  $(sel).textContent = text || '';
+  $(sel).hidden = !text;
+}
+
+function showLocate({ error = '', focus = false } = {}) {
   show('locate');
-  $('#locate-status').hidden = !!isError || !message;
-  $('#locate-status').textContent = isError ? '' : message || '';
-  $('#locate-error').hidden = !isError;
-  $('#locate-error').textContent = isError ? message : '';
-  $('#zip-form').hidden = false;
-  $('#use-location').hidden = !('geolocation' in navigator);
-  $('#zip').focus();
+  setMessage('#locate-error', error);
+  setMessage('#locate-status', '');
+  $('#use-location').hidden = !canGeolocate();
+  $('#use-location').disabled = false;
+  $('#cancel-locate').hidden = !lastData;
+  closeSuggestions();
+  // Don't focus on first load: on phones that opens the keyboard and hides the location button.
+  if (focus) $('#place-input').focus();
 }
 
 async function getJson(url) {
@@ -330,54 +363,184 @@ async function getJson(url) {
   return body;
 }
 
-async function loadWeather(lat, lon, placeLabel = null) {
+/** Load weather for a location; on success it becomes the saved location. Only the latest request wins. */
+let weatherToken = 0;
+async function loadWeather({ lat, lon, label = null }) {
+  const token = ++weatherToken;
   show('loading');
   try {
     const data = await getJson(`/api/weather?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`);
+    if (token !== weatherToken) return;
     lastData = data;
-    lastPlaceLabel = placeLabel;
+    const nwsLabel = [data.location.city, data.location.state].filter(Boolean).join(', ');
+    lastPlaceLabel = label || nwsLabel || null;
+    saveLocation({ label: lastPlaceLabel, lat, lon });
     resetHistory();
     render();
     show('weather');
   } catch (err) {
-    askForZip(err.message, true);
+    if (token !== weatherToken) return;
+    showLocate({ error: err.message });
   }
 }
 
-function locate() {
-  if (!('geolocation' in navigator) || !window.isSecureContext) {
-    askForZip('Enter a zip code to see your weather.');
-    return;
+// ---------- city / zip search with suggestions ----------
+
+const input = $('#place-input');
+const list = $('#suggestions');
+const SUGGEST_DELAY_MS = 120;
+const suggestCache = new Map();
+let suggestions = [];
+let active = -1;
+let suggestToken = 0;
+let suggestTimer = null;
+
+async function fetchSuggestions(query) {
+  const key = query.toLowerCase();
+  if (!suggestCache.has(key)) {
+    const { results } = await getJson(`/api/places?q=${encodeURIComponent(query)}`);
+    suggestCache.set(key, results);
   }
-  show('locate');
-  $('#zip-form').hidden = true;
-  $('#locate-error').hidden = true;
-  $('#locate-status').hidden = false;
-  $('#locate-status').textContent = 'Finding your location…';
-  navigator.geolocation.getCurrentPosition(
-    (pos) => loadWeather(pos.coords.latitude, pos.coords.longitude),
-    () => askForZip("We couldn't get your location."),
-    { timeout: 10000, maximumAge: 10 * 60 * 1000 },
-  );
+  return suggestCache.get(key);
 }
 
-$('#zip-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const zip = $('#zip').value.trim();
-  if (!/^\d{5}$/.test(zip)) {
-    askForZip('Enter a 5-digit US zip code.', true);
-    return;
+function closeSuggestions() {
+  clearTimeout(suggestTimer);
+  suggestToken++;
+  suggestions = [];
+  active = -1;
+  list.replaceChildren();
+  list.hidden = true;
+  input.setAttribute('aria-expanded', 'false');
+  input.removeAttribute('aria-activedescendant');
+}
+
+function renderSuggestions(results, query) {
+  suggestions = results;
+  active = -1;
+  list.replaceChildren();
+  results.forEach((r, i) => {
+    const li = el('li');
+    li.id = `suggestion-${i}`;
+    li.setAttribute('role', 'option');
+    li.setAttribute('aria-selected', 'false');
+    li.append(el('span', null, r.zip ? r.label : r.name), el('small', null, r.zip ? 'Zip code' : r.stateName));
+    li.addEventListener('mousedown', (e) => e.preventDefault()); // keep focus in the input
+    li.addEventListener('click', () => choose(r));
+    list.append(li);
+  });
+  if (!results.length && query) {
+    let hint = 'No matching US city';
+    if (/^\d+$/.test(query)) hint = query.length < 5 ? 'Keep typing the 5-digit zip code' : 'Zip code not found';
+    const li = el('li', 'empty', hint);
+    li.setAttribute('role', 'option');
+    li.setAttribute('aria-disabled', 'true');
+    list.append(li);
   }
-  try {
-    const { lat, lon } = await getJson(`/api/zip/${zip}`);
-    loadWeather(lat, lon, zip);
-  } catch (err) {
-    askForZip(err.message, true);
+  const open = list.children.length > 0;
+  list.hidden = !open;
+  input.setAttribute('aria-expanded', String(open));
+  input.removeAttribute('aria-activedescendant');
+}
+
+function setActive(i) {
+  if (!suggestions.length) return;
+  active = (i + suggestions.length) % suggestions.length;
+  [...list.children].forEach((li, k) => li.setAttribute('aria-selected', String(k === active)));
+  const li = list.children[active];
+  input.setAttribute('aria-activedescendant', li.id);
+  li.scrollIntoView?.({ block: 'nearest' });
+}
+
+function choose(result) {
+  input.value = result.label;
+  closeSuggestions();
+  loadWeather({ lat: result.lat, lon: result.lon, label: result.label });
+}
+
+input.addEventListener('input', () => {
+  clearTimeout(suggestTimer);
+  setMessage('#locate-error', '');
+  const query = input.value.trim();
+  if (!query) return closeSuggestions();
+  if (/^\d{1,4}$/.test(query)) return renderSuggestions([], query);
+  const token = ++suggestToken;
+  suggestTimer = setTimeout(async () => {
+    try {
+      const results = await fetchSuggestions(query);
+      if (token === suggestToken) renderSuggestions(results, query);
+    } catch {
+      if (token === suggestToken) closeSuggestions();
+    }
+  }, SUGGEST_DELAY_MS);
+});
+
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    setActive(active + 1);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    setActive(active - 1);
+  } else if (e.key === 'Escape') {
+    closeSuggestions();
+  } else if (e.key === 'Enter' && active >= 0) {
+    e.preventDefault();
+    choose(suggestions[active]);
   }
 });
 
-$('#use-location').addEventListener('click', locate);
-$('#change-location').addEventListener('click', () => askForZip(''));
+input.addEventListener('blur', () => setTimeout(closeSuggestions, 150));
+
+$('#place-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const query = input.value.trim();
+  if (!query) return setMessage('#locate-error', 'Type a US city or zip code.');
+  if (active >= 0) return choose(suggestions[active]);
+  if (/^\d+$/.test(query) && query.length !== 5) return setMessage('#locate-error', 'Enter a 5-digit US zip code.');
+  try {
+    const [first] = await fetchSuggestions(query);
+    if (first) return choose(first);
+    setMessage('#locate-error', /^\d+$/.test(query) ? `Zip code ${query} not found.` : `No US city found matching "${query}".`);
+  } catch (err) {
+    setMessage('#locate-error', err.message);
+  }
+});
+
+// ---------- current location ----------
+
+$('#use-location').addEventListener('click', () => {
+  const button = $('#use-location');
+  button.disabled = true;
+  setMessage('#locate-error', '');
+  setMessage('#locate-status', 'Finding your location…');
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      // ~1 km precision is plenty for weather, and it's all that gets saved in the cookie.
+      const round = (n) => Math.round(n * 100) / 100;
+      loadWeather({ lat: round(pos.coords.latitude), lon: round(pos.coords.longitude) });
+    },
+    (err) => {
+      button.disabled = false;
+      setMessage('#locate-status', '');
+      setMessage(
+        '#locate-error',
+        err.code === 1
+          ? 'Location access was blocked. Search for a city or zip code instead.'
+          : "Couldn't get your location. Search for a city or zip code instead.",
+      );
+    },
+    { timeout: 10_000, maximumAge: 10 * 60_000 },
+  );
+});
+
+$('#change-location').addEventListener('click', () => {
+  input.value = '';
+  showLocate({ focus: true });
+});
+$('#cancel-locate').addEventListener('click', () => show('weather'));
+
+// ---------- units / start ----------
 
 function setUnit(next) {
   unit = next;
@@ -392,4 +555,6 @@ document.querySelectorAll('.unit-toggle button').forEach((b) => {
 });
 
 setUnit(unit);
-locate();
+const saved = readSavedLocation();
+if (saved) loadWeather(saved);
+else showLocate();
