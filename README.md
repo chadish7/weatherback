@@ -60,6 +60,10 @@ partial oldest NWS day with the full NCEI record (keeping its NWS sky icon). NCE
 icons come from rain/snow totals and NOAA's weather-event flags (thunder, fog, haze, high wind). A dry day with
 no events shows a neutral 🌤️ "dry" icon. NCEI data lags a few days, which doesn't matter for these older dates.
 
+If NCEI's data service is down, older days come from the same station records through
+[ACIS](https://www.rcc-acis.org/docs_webservices.html), run by NOAA's Regional Climate Centers. ACIS has highs, lows,
+rain and snow but not the fog/thunder flags, so those icons are missing until NCEI is back (re-checked within a day).
+
 ## Run locally
 
 Requires Node.js 22.13 or newer (for the built-in `node:sqlite`).

@@ -89,6 +89,34 @@ try {
     if (r[iLev] === '162') population.set(r[iState] + r[iPlace], Number(r[iPop]) || 0);
   }
 
+  // Census internal points can sit far from where people live: San Francisco's is ~30 km offshore because
+  // the city includes the Farallon Islands. Use the land-area-weighted mean of the zip code centroids that
+  // overlap each place instead (2020 ZCTA-to-place relationship file), falling back to the internal point.
+  const zipCentroids = JSON.parse(readFileSync(join(root, 'data', 'zips.json'), 'utf8'));
+  const relPath = join(tmp, 'rel.txt');
+  console.log(`Downloading ${relUrl}`);
+  execFileSync('curl', ['-sSfL', '--retry', '3', '-o', relPath, relUrl], { stdio: 'inherit' });
+  const relLines = readFileSync(relPath, 'utf8').split(/\r?\n/).filter(Boolean);
+  const relHeader = relLines[0].split('|');
+  const [rZip, rPlace, rArea] = ['GEOID_ZCTA5_20', 'GEOID_PLACE_20', 'AREALAND_PART'].map((h) => relHeader.indexOf(h));
+  if ([rZip, rPlace, rArea].some((i) => i < 0)) throw new Error('Unexpected ZCTA-place relationship header');
+  const overlaps = []; // [zip, placeGeoid, landArea]
+  const centroidSums = new Map(); // placeGeoid -> { lat, lon, w }
+  for (const line of relLines.slice(1)) {
+    const c = line.split('|');
+    const zip = c[rZip];
+    const area = Number(c[rArea]) || 0;
+    if (!/^\d{5}$/.test(zip) || !c[rPlace] || area <= 0) continue;
+    overlaps.push([zip, c[rPlace], area]);
+    const z = zipCentroids[zip];
+    if (!z) continue;
+    const s = centroidSums.get(c[rPlace]) || { lat: 0, lon: 0, w: 0 };
+    s.lat += z[0] * area;
+    s.lon += z[1] * area;
+    s.w += area;
+    centroidSums.set(c[rPlace], s);
+  }
+
   const text = execFileSync('unzip', ['-p', zipPath], { maxBuffer: 64 * 1024 * 1024 }).toString('utf8');
   const lines = text.split(/\r?\n/).filter(Boolean);
   const sep = lines[0].includes('|') ? '|' : '\t';
@@ -101,9 +129,14 @@ try {
   const placeByGeoid = new Map();
   for (const line of lines.slice(1)) {
     const c = line.split(sep).map((s) => s.trim());
-    const lat = Number(c[gLat]);
-    const lon = Number(c[gLon]);
+    let lat = Number(c[gLat]);
+    let lon = Number(c[gLon]);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    const sums = centroidSums.get(c[gGeoid]);
+    if (sums?.w > 0) {
+      lat = sums.lat / sums.w;
+      lon = sums.lon / sums.w;
+    }
     const usps = c[gUsps];
     const stName = stateNameByFips.get(c[gGeoid].slice(0, 2));
     if (stName) states[usps] = stName;
@@ -126,20 +159,10 @@ try {
   console.log(`Wrote ${places.length} places (${withPop} with population) to ${outFile}`);
 
   // Name each zip after the place covering the most of its land area.
-  const relPath = join(tmp, 'rel.txt');
-  console.log(`Downloading ${relUrl}`);
-  execFileSync('curl', ['-sSfL', '--retry', '3', '-o', relPath, relUrl], { stdio: 'inherit' });
-  const relLines = readFileSync(relPath, 'utf8').split(/\r?\n/).filter(Boolean);
-  const relHeader = relLines[0].split('|');
-  const [rZip, rPlace, rArea] = ['GEOID_ZCTA5_20', 'GEOID_PLACE_20', 'AREALAND_PART'].map((h) => relHeader.indexOf(h));
-  if ([rZip, rPlace, rArea].some((i) => i < 0)) throw new Error('Unexpected ZCTA-place relationship header');
   const bestByZip = new Map();
-  for (const line of relLines.slice(1)) {
-    const c = line.split('|');
-    const zip = c[rZip];
-    const label = placeByGeoid.get(c[rPlace]);
-    const area = Number(c[rArea]) || 0;
-    if (!/^\d{5}$/.test(zip) || !label || area <= 0) continue;
+  for (const [zip, placeGeoid, area] of overlaps) {
+    const label = placeByGeoid.get(placeGeoid);
+    if (!label) continue;
     const cur = bestByZip.get(zip);
     if (!cur || area > cur.area) bestByZip.set(zip, { label, area });
   }
